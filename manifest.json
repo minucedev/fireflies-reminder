@@ -1,22 +1,40 @@
 {
   "manifest_version": 3,
   "name": "Fireflies Meet Reminder",
-  "version": "1.0.0",
-  "description": "Friendly reminder to invite the Fireflies.ai notetaker into your Google Meet call.",
+  "version": "1.4.0",
+  "description": "Friendly reminder to invite the Fireflies.ai notetaker into your Google Meet call, plus quick in-call notes linked into the Fireflies app.",
   "permissions": ["storage"],
   "background": {
     "service_worker": "src/background/service-worker.js"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html"
   },
   "content_scripts": [
     {
       "matches": ["https://meet.google.com/*"],
       "js": [
         "src/common/constants.js",
+        "src/common/notes-store.js",
+        "src/common/notes-export.js",
         "src/content/meet-selectors.js",
         "src/content/meeting-session.js",
         "src/content/detector.js",
         "src/content/reminder-banner.js",
+        "src/content/quick-notes.js",
         "src/content/content-script.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://app.fireflies.ai/*"],
+      "js": [
+        "src/common/constants.js",
+        "src/common/notes-store.js",
+        "src/common/notes-export.js",
+        "src/common/fireflies-link-store.js",
+        "src/content/fireflies-selectors.js",
+        "src/content/fireflies-panel.js"
       ],
       "run_at": "document_idle"
     }

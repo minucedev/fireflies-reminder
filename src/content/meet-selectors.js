@@ -92,5 +92,40 @@
     return texts;
   }
 
-  NS.selectors = { isInCall, isInLobby, getVisibleNameTexts };
+  // Finds the bounding box of Meet's own bottom control bar (mic/camera/leave
+  // row) so the quick-notes button can dock just outside its left edge. We
+  // don't know Meet's obfuscated class names for the row container, so we
+  // start from the one button we can already reliably identify — the "leave
+  // call" button (same selector isInCall() relies on) — and walk a small,
+  // bounded number of ancestors looking for the lowest one that also
+  // contains mic AND camera controls, i.e. the row that groups the whole
+  // button set. Returns null (never throws) if it can't confidently find
+  // that row within the bound, so callers can fall back to a fixed position.
+  const CONTROL_BAR_MAX_ANCESTOR_DEPTH = 6;
+
+  function getControlBarRect() {
+    try {
+      const leaveBtn = document.querySelector('[aria-label*="leave" i]');
+      if (!leaveBtn) return null;
+
+      let candidate = leaveBtn.parentElement;
+      let depth = 0;
+      while (candidate && depth < CONTROL_BAR_MAX_ANCESTOR_DEPTH) {
+        const hasMic = candidate.querySelector('[aria-label*="microphone" i], [aria-label*="mic" i]');
+        const hasCamera = candidate.querySelector('[aria-label*="camera" i]');
+        if (hasMic && hasCamera) {
+          const rect = candidate.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 ? rect : null;
+        }
+        candidate = candidate.parentElement;
+        depth++;
+      }
+      return null;
+    } catch (err) {
+      warnOnce("getControlBarRect", err);
+      return null;
+    }
+  }
+
+  NS.selectors = { isInCall, isInLobby, getVisibleNameTexts, getControlBarRect };
 })(window);

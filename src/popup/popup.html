@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Fireflies Notes</title>
+    <style>
+      body {
+        width: 320px;
+        max-height: 480px;
+        overflow-y: auto;
+        margin: 0;
+        font-family: "Google Sans", Roboto, Arial, sans-serif;
+        font-size: 13px;
+        color: #202124;
+      }
+      header {
+        padding: 12px 14px;
+        border-bottom: 1px solid #eee;
+        font-weight: 500;
+        font-size: 14px;
+      }
+      .meeting {
+        padding: 10px 14px;
+        border-bottom: 1px solid #f1f3f4;
+      }
+      .meeting-title {
+        font-weight: 500;
+        margin-bottom: 6px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+      .meeting-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .meeting-code {
+        color: #5f6368;
+        font-weight: 400;
+      }
+      .meeting-actions {
+        display: flex;
+        gap: 4px;
+        flex-shrink: 0;
+      }
+      .note {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 6px 8px;
+        margin-bottom: 6px;
+      }
+      .note-time {
+        color: #5f6368;
+        font-size: 11px;
+        margin-right: 6px;
+      }
+      .action-btn {
+        border: none;
+        background: none;
+        color: #1a73e8;
+        cursor: pointer;
+        font-size: 10px;
+        font-weight: 500;
+        font-family: inherit;
+        padding: 2px 5px;
+        border-radius: 4px;
+      }
+      .action-btn:hover {
+        background: rgba(26, 115, 232, 0.08);
+      }
+      .empty {
+        padding: 24px 14px;
+        color: #5f6368;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <header>📝 Quick Notes</header>
+    <div id="list"></div>
+    <script src="../common/notes-store.js"></script>
+    <script src="../common/notes-export.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

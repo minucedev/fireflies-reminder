@@ -5,6 +5,7 @@
   const { getCallState, scanForFireflies } = NS.detector;
   const { getMeetingCode, isMuted, setMuted } = NS.session;
   const banner = NS.banner;
+  const quickNotes = NS.quickNotes;
 
   let wasInCall = false;
   let firefliesDetected = false;
@@ -67,6 +68,7 @@
   function teardownMeeting() {
     clearAllTimers();
     banner.destroy();
+    quickNotes.destroy();
     firefliesDetected = false;
     meetingCode = null;
   }
@@ -79,12 +81,14 @@
       meetingCode = getMeetingCode();
       firefliesDetected = false;
       await startNagCycle();
+      quickNotes.init(Date.now());
     } else if (state !== "in-call" && wasInCall) {
       wasInCall = false;
       teardownMeeting();
     }
 
     if (wasInCall) {
+      quickNotes.reposition();
       const found = scanForFireflies();
       if (found && !firefliesDetected) {
         handleFirefliesDetected();
@@ -107,6 +111,7 @@
       if (observer) observer.disconnect();
       clearAllTimers();
       banner.destroy();
+      quickNotes.destroy();
     } catch (err) {
       console.warn(`${LOG_PREFIX} failed to tear down`, err);
     }
