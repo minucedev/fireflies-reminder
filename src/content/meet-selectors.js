@@ -127,5 +127,71 @@
     }
   }
 
-  NS.selectors = { isInCall, isInLobby, getVisibleNameTexts, getControlBarRect };
+  // Admitting a pending "fireflies"-named participant is a two-step Meet
+  // interaction (confirmed via a real recorded click trace): open that
+  // row's "More actions" (⋮) menu, then click the "Admit <name>" menu item
+  // that appears — there is no single direct "Admit" button on the row.
+  // Scoped tightly to admission-gate list items whose own aria-label
+  // matches "fireflies" — never touches "Deny" or any other participant.
+  function getPendingFirefliesMoreActionsButtons() {
+    const buttons = [];
+    try {
+      document.querySelectorAll('[role="listitem"][aria-label*="fireflies" i]').forEach((item) => {
+        if (!isPendingAdmission(item)) return;
+        const moreBtn = item.querySelector('[aria-label="More actions"], [aria-label*="more actions" i]');
+        if (moreBtn) buttons.push(moreBtn);
+      });
+    } catch (err) {
+      warnOnce("getPendingFirefliesMoreActionsButtons", err);
+    }
+    return buttons;
+  }
+
+  // The pending-admission row only appears to exist/behave correctly once
+  // Meet's "N guest(s) waiting" pill has been clicked (confirmed via a real
+  // click trace) — this pill has no aria-label, only plain visible text,
+  // so it's matched by exact trimmed text content rather than attributes.
+  // Guarded by aria-expanded so we don't toggle an already-open panel shut.
+  const GUESTS_WAITING_PATTERN = /^\d+\s+guests?\s+waiting$/i;
+
+  function findGuestsWaitingTrigger() {
+    try {
+      // Not a <button>/role="button" in practice (confirmed live) — plain
+      // div/span. querySelectorAll returns matches in document order, so an
+      // outer clickable wrapper is naturally checked before any inner text
+      // span it contains, as long as the exact-match text lives on it too.
+      const candidates = document.querySelectorAll('button, [role="button"], div, span');
+      for (const el of candidates) {
+        const text = (el.textContent || "").replace(/\s+/g, " ").trim();
+        if (GUESTS_WAITING_PATTERN.test(text)) return el;
+      }
+    } catch (err) {
+      warnOnce("findGuestsWaitingTrigger", err);
+    }
+    return null;
+  }
+
+  // The "Admit <name>" menu item Meet renders after the "More actions" menu
+  // is opened — matched by role + aria-label containing both "admit" and
+  // "fireflies" (confirmed wording: "Admit Fireflies.ai Notetaker <name>").
+  // Not scoped to a specific row's subtree since Meet may render the open
+  // menu elsewhere in the document.
+  function findFirefliesAdmitMenuItem() {
+    try {
+      return document.querySelector('[role="menuitem"][aria-label*="admit" i][aria-label*="fireflies" i]');
+    } catch (err) {
+      warnOnce("findFirefliesAdmitMenuItem", err);
+      return null;
+    }
+  }
+
+  NS.selectors = {
+    isInCall,
+    isInLobby,
+    getVisibleNameTexts,
+    getControlBarRect,
+    getPendingFirefliesMoreActionsButtons,
+    findGuestsWaitingTrigger,
+    findFirefliesAdmitMenuItem,
+  };
 })(window);

@@ -1,8 +1,13 @@
 (function (global) {
   const NS = global.__fireflies;
-  const { DEFAULT_GRACE_PERIOD_MS, DEFAULT_REPEAT_INTERVAL_MS, MUTATION_DEBOUNCE_MS, LOG_PREFIX } =
-    NS.constants;
-  const { getCallState, scanForFireflies } = NS.detector;
+  const {
+    DEFAULT_GRACE_PERIOD_MS,
+    DEFAULT_REPEAT_INTERVAL_MS,
+    MUTATION_DEBOUNCE_MS,
+    AUTO_ADMIT_FIREFLIES,
+    LOG_PREFIX,
+  } = NS.constants;
+  const { getCallState, scanForFireflies, admitPendingFireflies } = NS.detector;
   const { getMeetingCode, isMuted, setMuted } = NS.session;
   const banner = NS.banner;
   const quickNotes = NS.quickNotes;
@@ -89,6 +94,7 @@
 
     if (wasInCall) {
       quickNotes.reposition();
+      if (AUTO_ADMIT_FIREFLIES) await admitPendingFireflies();
       const found = scanForFireflies();
       if (found && !firefliesDetected) {
         handleFirefliesDetected();

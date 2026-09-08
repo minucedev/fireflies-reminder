@@ -33,8 +33,20 @@ to the whole team.
   banner in the call; it repeats every 5 minutes until Fireflies joins, the
   call ends, or you click "Mute for this meeting" (which silences it only
   for that specific call).
-- Detection is done by reading names already visible on screen — it never
-  opens Meet's People panel or clicks anything on your behalf.
+- Detection is done by reading names already visible on screen — normally
+  it never opens Meet's People panel on your behalf.
+- **Auto-admits Fireflies**: if Fireflies shows up in Meet's "waiting to
+  join" / "With potential risks" queue, the extension clicks the "N
+  guest(s) waiting" pill (confirmed necessary — the pending row doesn't
+  behave until that's opened), opens that row's "More actions" menu, then
+  clicks "Admit" for it — no one has to remember to let it in. This is the
+  one place the extension clicks anything on your behalf, and it's scoped
+  tightly to entries whose name contains "fireflies" (never touches "Deny"
+  or any other pending participant). **Trade-off**: this bypasses Meet's
+  own bot-safety confirmation step for anything matching that name — set
+  `AUTO_ADMIT_FIREFLIES` to `false` in
+  [`src/common/constants.js`](src/common/constants.js) to require manual
+  admission instead.
 - Once Fireflies is actually admitted into the meeting (not just invited/
   waiting), a brief green confirmation badge appears and auto-dismisses.
 
@@ -52,6 +64,12 @@ to the whole team.
 - **Export .txt / Export .md** in that same window download the current
   meeting's notes as a file (`fireflies-notes-<meeting-code>-<date>.txt`
   or `.md`), including the meeting link and date.
+- **Flag a moment instantly**: press **Ctrl+Shift+F** (Cmd+Shift+F on Mac)
+  anytime during a call to save a timestamped placeholder note with zero
+  UI — no modal, no typing, just a quick flash on the 📝 button so you know
+  it landed. Fill in the details later by clicking on that note's text
+  (in the modal or the toolbar popup) to edit it in place. Customize the
+  shortcut anytime at `chrome://extensions/shortcuts`.
 - Notes are private to your own browser (saved locally, not shared with
   other participants or synced anywhere).
 - To review notes after the call ends, click the extension's icon in the

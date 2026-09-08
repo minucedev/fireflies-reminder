@@ -2,6 +2,7 @@
   const notesStore = window.__fireflies.notesStore;
   const notesExport = window.__fireflies.notesExport;
   const listEl = document.getElementById("list");
+  const FLAG_PLACEHOLDER = "🚩 Flagged moment — click to add details";
 
   async function render() {
     try {
@@ -36,14 +37,34 @@
         title.appendChild(actions);
         section.appendChild(title);
 
-        meeting.notes.forEach((note) => {
+        meeting.notes.forEach((note, index) => {
           const noteEl = document.createElement("div");
           noteEl.className = "note";
           const timeEl = document.createElement("span");
           timeEl.className = "note-time";
           timeEl.textContent = notesExport.formatElapsed(note.elapsedMs);
           const textEl = document.createElement("span");
+          textEl.className = "note-text";
+          textEl.title = "Click to edit";
           textEl.textContent = note.text;
+          textEl.addEventListener("click", () => {
+            const input = document.createElement("input");
+            input.type = "text";
+            input.className = "note-edit-input";
+            input.value = note.text === FLAG_PLACEHOLDER ? "" : note.text;
+            noteEl.replaceChild(input, textEl);
+            input.focus();
+
+            const commit = async () => {
+              const newText = input.value.trim() || note.text;
+              await notesStore.updateNoteText(meeting.meetingCode, index, newText);
+              render();
+            };
+            input.addEventListener("blur", commit);
+            input.addEventListener("keydown", (e) => {
+              if (e.key === "Enter") input.blur();
+            });
+          });
           noteEl.appendChild(timeEl);
           noteEl.appendChild(textEl);
           section.appendChild(noteEl);

@@ -53,6 +53,21 @@
     }
   }
 
+  async function updateNoteText(meetingCode, index, newText) {
+    try {
+      const existing = await getNotes(meetingCode);
+      if (!existing.notes[index]) return null;
+      const notes = existing.notes.slice();
+      notes[index] = { ...notes[index], text: newText };
+      const updated = { ...existing, notes, updatedAt: new Date().toISOString() };
+      await chrome.storage.local.set({ [noteKey(meetingCode)]: updated });
+      return updated;
+    } catch (err) {
+      console.warn("[fireflies-reminder] failed to update note", err);
+      return null;
+    }
+  }
+
   async function getAllMeetingsWithNotes() {
     try {
       const all = await chrome.storage.local.get(null);
@@ -77,5 +92,5 @@
     }
   }
 
-  NS.notesStore = { getNotes, addNote, deleteNote, getAllMeetingsWithNotes };
+  NS.notesStore = { getNotes, addNote, deleteNote, updateNoteText, getAllMeetingsWithNotes };
 })(window);
