@@ -1,13 +1,15 @@
 # Fireflies Meet Reminder
 
-A small internal Chrome extension that gives a friendly nudge inside Google
-Meet if the Fireflies.ai notetaker hasn't joined the call, with a
+A small internal Chrome/Firefox extension that gives a friendly nudge inside
+Google Meet if the Fireflies.ai notetaker hasn't joined the call, with a
 "Mute for this meeting" option, plus a quick-notes widget for jotting down
 moments worth remembering without having to re-read the whole transcript
 later. No backend, no Fireflies API, no build step — plain JS/CSS/HTML
 loaded as an unpacked extension.
 
 ## Install (per teammate)
+
+### Chrome
 
 1. Go to this repo on GitHub → green **Code** button → **Download ZIP**
    (or `git clone` it if you prefer). Unzip it somewhere on your machine.
@@ -24,6 +26,41 @@ and click the reload icon (⟳) on its card in `chrome://extensions`.
 If your organization manages Chrome centrally, developer mode / unpacked
 extensions may be blocked by policy — check with IT before rolling this out
 to the whole team.
+
+### Firefox
+
+Requires **Firefox 127 or later** — below that, Firefox doesn't grant the
+Meet/Fireflies page access this extension needs at install time, so it loads
+but silently does nothing.
+
+1. Get the code the same way as above (Download ZIP or `git clone`, then
+   unzip).
+2. Open `about:debugging#/runtime/this-firefox`.
+3. Click **Load Temporary Add-on…** and select the **`manifest.json` file
+   itself** (not the folder — Firefox's picker differs from Chrome's here).
+4. Join a Google Meet call.
+
+A temporary add-on is **cleared every time Firefox restarts** — you'll need
+to repeat step 2–3 after each restart. For a permanent install, ask whoever
+maintains this extension for a signed `.xpi` (see
+[Signing and distribution](#signing-and-distribution-firefox)) and install
+that via `about:addons` → the gear menu → **Install Add-on From File…**
+instead.
+
+**If the extension appears to do nothing** (no banner, no 📝 button): open
+`about:addons`, click this extension, go to **Permissions**, and enable
+*"Access your data for meet.google.com"* (and for `app.fireflies.ai` if you
+use the linked-notes panel), then reload the tab. Firefox lets you revoke
+this permission at any time even after granting it, so if the extension
+stops working later, check here first.
+
+**Keyboard shortcut**: if **Ctrl+Shift+F** (same combo on Mac — the physical
+Control key, not Command, so it doesn't collide with the default Cmd+Shift+F
+used on Chrome/Mac) doesn't flag a moment, another add-on or the browser
+itself may already own that combination — Firefox gives no warning when this
+happens. Go to `about:addons` → gear icon → **Manage Extension Shortcuts**
+to rebind it; this persists across restarts even though the extension
+itself isn't permanently installed.
 
 ## How it works
 
@@ -64,16 +101,18 @@ to the whole team.
 - **Export .txt / Export .md** in that same window download the current
   meeting's notes as a file (`fireflies-notes-<meeting-code>-<date>.txt`
   or `.md`), including the meeting link and date.
-- **Flag a moment instantly**: press **Ctrl+Shift+F** (Cmd+Shift+F on Mac)
-  anytime during a call to save a timestamped placeholder note with zero
+- **Flag a moment instantly**: press **Ctrl+Shift+F** (same combo on Mac —
+  physical Control key, not Command) anytime during a call to save a
+  timestamped placeholder note with zero
   UI — no modal, no typing, just a quick flash on the 📝 button so you know
   it landed. Fill in the details later by clicking on that note's text
   (in the modal or the toolbar popup) to edit it in place. Customize the
-  shortcut anytime at `chrome://extensions/shortcuts`.
+  shortcut anytime at `chrome://extensions/shortcuts` (Chrome) or
+  `about:addons` → gear icon → **Manage Extension Shortcuts** (Firefox).
 - Notes are private to your own browser (saved locally, not shared with
   other participants or synced anywhere).
 - To review notes after the call ends, click the extension's icon in the
-  Chrome toolbar — it lists notes from your recent meetings (most recent
+  toolbar — it lists notes from your recent meetings (most recent
   first) with **Copy / TXT / MD** actions per meeting. Only the last 20
   meetings with notes are kept; older ones are cleaned up automatically.
 
@@ -107,6 +146,50 @@ to the whole team.
 - Likewise, all raw Fireflies-app DOM queries live in
   [`src/content/fireflies-selectors.js`](src/content/fireflies-selectors.js)
   — currently just a best-effort scan for a Google Meet link on the page.
+
+## Cross-browser notes
+
+- One `manifest.json` serves both browsers — there is no separate Firefox
+  build or branch. Loading it in Chrome may show one or two cosmetic
+  `Unrecognized manifest key` warnings on the extensions page (for
+  `browser_specific_settings` and possibly `background.scripts`); these are
+  expected and harmless, not a sign anything is broken.
+- `src/background/service-worker.js` keeps its filename even though Firefox
+  runs it as a non-persistent **event page** rather than a service worker —
+  Firefox doesn't implement background service workers, but the same file
+  works unchanged in both because the manifest's `background` key lists it
+  under both `service_worker` (Chrome) and `scripts` (Firefox).
+- **macOS shortcut changed** as of this Firefox port: it's now
+  **Ctrl+Shift+F** (the physical Control key) instead of the previous
+  **Command+Shift+F**, in *both* Chrome and Firefox — this manifest is
+  shared between the two, so the change applies everywhere at once. This
+  was chosen over Command+Shift+F because `"Ctrl"` in the manifest maps to
+  Command on macOS, which is why the shortcut needed the distinct
+  `"MacCtrl"` modifier to avoid colliding with the same combo Firefox
+  already reserves for other things. **If you're on a Mac and used
+  Cmd+Shift+F before, retrain to Ctrl+Shift+F** (or rebind it back at
+  `about:addons` / `chrome://extensions/shortcuts` if you'd rather keep
+  Cmd+Shift+F).
+
+### Signing and distribution (Firefox)
+
+A permanent (non-temporary) Firefox install needs a **signed `.xpi`**, built
+with [`web-ext`](https://github.com/mozilla/web-ext) via `npx` (no
+dependency is added to this repo for it):
+
+```
+npx web-ext lint
+npx web-ext sign --channel=unlisted --api-key=<AMO_API_KEY> --api-secret=<AMO_API_SECRET>
+```
+
+- `--channel=unlisted` produces a signed `.xpi` that installs permanently on
+  release Firefox and can be shared internally without publishing to
+  addons.mozilla.org.
+- **Bump `version` in `manifest.json` before every signing run** — AMO
+  rejects re-signing a version it has already seen.
+- This extension has no auto-update mechanism configured (that would need
+  `gecko.update_url` plus a self-hosted update manifest), so distribute new
+  signed builds the same way you'd distribute a new ZIP for Chrome.
 
 ## Known limitations
 
