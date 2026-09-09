@@ -1,6 +1,11 @@
 # Firefox support — investigation results and task list
 
-Status: **investigated, not started.** No code has been changed on this branch.
+Status: **in progress.** T1–T2, T4, T5b and T8 implemented (T3 was
+implemented then superseded/removed by T5b). Live-tested in Firefox
+(2026-09-09): P1, F2, and F4 (soak-tested twice — once pre-T5b, which failed
+and drove the T5b fix, then post-T5b, which passed clean) all confirmed
+working. Remaining: F1/F3/F5–F12 feature pass, Chrome regression pass, T6
+macOS decision, T7 icons, T9 signing.
 
 The verdict is that a Firefox build is worth doing and is a small job. Almost
 nothing here is Chrome-specific: the whole reminder engine is page-context
@@ -173,17 +178,19 @@ Worth recording so nobody re-investigates them:
 Roughly 15 minutes, run against the **current, unmodified** extension.
 Everything downstream is pointless if content scripts don't run.
 
-- [ ] `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on** →
+- [x] `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on** →
       select the **`manifest.json` file** (Firefox picks the manifest; Chrome
       picks the folder — a real difference for the README).
-- [ ] Open `https://meet.google.com/`, DevTools console:
+- [x] Open `https://meet.google.com/`, DevTools console:
       `typeof window.__fireflies` must be `"object"`.
       If `"undefined"`: `about:addons` → this extension → **Permissions** →
       enable *"Access your data for meet.google.com"*, reload the tab, retry.
-- [ ] **Write down whether that permission step was needed.** A temporary
-      add-on bypasses the install prompt, so it may not get the F-3 auto-grant
-      that a signed build does. The answer decides what the README tells
-      teammates.
+- [x] **Write down whether that permission step was needed.** **Result
+      (2026-09-09, post-T1/T2 build, real Firefox 127+ session): no manual
+      permission step was needed** — the temporary add-on got content-script
+      host access automatically and `window.__fireflies` was an `"object"`
+      immediately. Auto-admit (QA F2) also fired with no manual click. See
+      open question 4 below.
 - [ ] Probe session storage from the extension's content-script sandbox
       (switch the console's JS context):
       ```js
@@ -191,6 +198,7 @@ Everything downstream is pointless if content scripts don't run.
       await browser.storage.session.get("probe");   // {probe: 1} ⇒ ungated, T5b not needed
       ```
       A rejection, a `TypeError`, or `{}` means it is gated → T5b applies.
+      Not yet run — still needed to settle open question 5 / T5a vs. T5b.
 
 ### T1 — `manifest.json`
 
@@ -274,16 +282,14 @@ nothing.
 
 ### T3 — Capability guard in the service worker
 
-- [ ] At the top of `unlockSessionStorageForContentScripts()`:
-      ```js
-      // Chrome-only. Firefox has never implemented setAccessLevel (bug
-      // 1724754) and doesn't gate storage.session behind an access level at
-      // all, so there is nothing to unlock there — bail out instead of
-      // warning on every event-page wake-up.
-      if (typeof api.storage.session?.setAccessLevel !== "function") return;
-      ```
-      Without this, Firefox logs `failed to set storage access level` every
-      time the event page wakes.
+**Superseded by T5b (2026-09-09).** The guard was implemented first, then
+T5a's soak test showed the underlying `storage.session` dependency was
+broken in a way the guard doesn't fix (see T5a/T5b below), so
+`unlockSessionStorageForContentScripts()` — guard included — was deleted
+entirely rather than kept. Left here for the record, not as a pending item.
+
+- [x] ~~At the top of `unlockSessionStorageForContentScripts()`~~ — moot,
+      the function no longer exists.
 
 ### T4 — Pin the `onMessage` contract
 
@@ -296,7 +302,7 @@ nothing.
 
 ### T5a — Mute soak test (5 minutes, unavoidable)
 
-- [ ] After T2: join a real call, let the 60s grace period elapse, click
+- [x] After T2: join a real call, let the 60s grace period elapse, click
       **"Mute for this meeting"**, then **wait the full 5 minutes**. The banner
       must not come back.
 
@@ -305,7 +311,31 @@ This is the only test that catches F-4. `isMuted()` catches and returns
 visibly wrong** — the sole symptom is a banner nagging again five minutes
 later.
 
-### T5b — Mute fallback, ONLY if T5a fails
+**Result (2026-09-09):** the console showed exactly the predicted failure —
+`api.storage.session is undefined`, caught by both `isMuted()` and
+`setMuted()`. The banner did *not* reappear in the 5-minute window, but that
+turned out to be a red herring, not proof mute was working: clicking "Mute
+for this meeting" calls `clearAllTimers()` **unconditionally** in
+[`content-script.js`'s `onMute`](src/content/content-script.js#L34-L38),
+regardless of whether the underlying `setMuted()` write succeeded — so the
+in-page timer chain stops either way. The mute state itself was never
+persisted, so a page reload or `handleFirefliesGone()` re-triggering
+`startNagCycle()` mid-call would have called `isMuted()` again, gotten
+`false`, and resumed nagging despite the earlier click. **Verdict: F-4
+confirmed, gated → T5b required**, resolving open question 5.
+
+**Re-test after T5b (2026-09-09):** same script (grace period elapsed,
+banner appeared, clicked "Mute for this meeting", waited the full 5
+minutes) against the `sessionStorage` build. Console was clean — no
+`[fireflies-reminder] failed to read/write mute state` warnings this time
+(the sessionStorage calls don't throw) — banner did not return, and
+Fireflies detection/auto-admit kept working normally alongside it. **Passes
+task.md's original T5a bar.** Still open: this run didn't specifically
+exercise the reload-mid-call or Fireflies-leaves-and-rejoins edge cases
+called out above — worth one more pass before calling F-4 fully closed, but
+not blocking.
+
+### T5b — Mute fallback
 
 Move mute state to the Meet tab's own `sessionStorage`, in
 `meeting-session.js` only:
@@ -320,12 +350,14 @@ Move mute state to the Meet tab's own `sessionStorage`, in
 return Boolean(window.sessionStorage.getItem(STORAGE_MUTE_PREFIX + meetingCode));
 ```
 
-- [ ] Switch `isMuted` / `setMuted` to `sessionStorage`, keeping both `async`
+- [x] Switch `isMuted` / `setMuted` to `sessionStorage`, keeping both `async`
       and keeping the existing `try/catch` → `return false` fail-safe.
-- [ ] Then **delete** `unlockSessionStorageForContentScripts()` and both its
+- [x] Then **delete** `unlockSessionStorageForContentScripts()` and both its
       `onInstalled` / `onStartup` listeners. The background shrinks to just the
       command relay and the `storage.session` dependency leaves the project
       entirely — this is a net simplification, not a compatibility wart.
+      Done 2026-09-09; `npx web-ext lint` still 0 errors / same 7 warnings
+      after the change.
 
 **Trade-off, stated plainly:** it writes one prefixed key into
 `meet.google.com`'s own origin storage, where Meet's page scripts can see it.
@@ -427,7 +459,7 @@ test runner in this repo (no `package.json`), so this is all manual.
 
 | | Check | How |
 |---|---|---|
-| 🔴 | **P1** Content scripts run at all | Meet tab console: `typeof window.__fireflies === "object"`. If not, `about:addons` → Permissions. **Record the answer — it drives the README.** |
+| 🟢 | **P1** Content scripts run at all | Meet tab console: `typeof window.__fireflies === "object"`. If not, `about:addons` → Permissions. **Record the answer — it drives the README.** **Verified 2026-09-09: passed with no manual permission step.** |
 | 🟠 | **P2** Background alive as an event page | `about:debugging` → Inspect. No `failed to set storage access level` warning (T3 suppresses it). Context should identify as an event page, not a worker. |
 | 🟠 | **P3** `window.__fireflies` survives the Xray boundary | P1 proves it. If it ever fails: nine `})(window);` → `})(globalThis);`. |
 | 🟢 | **P4** Stable extension ID | Reload the temporary add-on twice; notes captured before still appear in the popup. Proves `gecko.id` works. |
@@ -437,9 +469,9 @@ test runner in this repo (no `package.json`), so this is all manual.
 | | Feature | How to verify | Risk notes |
 |---|---|---|---|
 | 🔴 | **F1** Meet DOM selectors | Join a real call. Console free of `selector lookup failed (…)`, `isInCall()` true. | **Highest risk in the whole port, and it is not an API problem.** [`meet-selectors.js`](src/content/meet-selectors.js) was reverse-engineered against Chrome's Meet DOM, and Meet serves browser-dependent markup. `[data-participant-id]`, `[aria-label*="leave" i]`, and the control-bar ancestor walk all need independent confirmation. Every lookup fails safe and silent, so a DOM difference looks identical to a permissions problem — clear P1 first. |
-| 🔴 | **F2** Auto-admit Fireflies | Invite the notetaker, watch it get admitted with no click. | Depends on the `N guests waiting` pill (matched by **exact visible text**, so locale-sensitive), the `More actions` menu, the `Admit <name>` item, and untrusted `.click()` / synthetic `Escape` reaching Meet's handlers. Three chained fragile steps. Test with `AUTO_ADMIT_FIREFLIES: false` first so it doesn't confound F1/F3. |
+| 🟢 | **F2** Auto-admit Fireflies | Invite the notetaker, watch it get admitted with no click. | Depends on the `N guests waiting` pill (matched by **exact visible text**, so locale-sensitive), the `More actions` menu, the `Admit <name>` item, and untrusted `.click()` / synthetic `Escape` reaching Meet's handlers. Three chained fragile steps. Test with `AUTO_ADMIT_FIREFLIES: false` first so it doesn't confound F1/F3. **Verified 2026-09-09: admitted automatically, no manual click needed.** |
 | 🟠 | **F3** Nag cycle | Join without Fireflies. Banner at ~60s. Click "Got it, thanks". Banner returns at ~5min with **different copy** (proves `repeatIndex` rotation). | Pure `setTimeout`; ports unchanged. Real risk is upstream in F1. |
-| 🔴 | **F4** Mute for this meeting | = T5a. Full 5-minute soak. | Silent by construction. Cannot be short-cut. |
+| 🟢 | **F4** Mute for this meeting | = T5a. Full 5-minute soak. | Silent by construction. Cannot be short-cut. **T5a first exposed the gap 2026-09-09 → T5b (sessionStorage) implemented → re-soaked same day, passed clean (no console warnings, banner stayed away).** Reload-mid-call / Fireflies-leaves-and-rejoins edge cases still untested but not blocking. |
 | 🟠 | **F5** Quick notes modal | 📝 docks left of Meet's control bar — bottom-right corner means `getControlBarRect()` returned null, which is an F1 problem, not an F5 one. Add / inline-edit / delete, Escape closes, click-outside closes, ✕ closes. | Shadow DOM + inline `<style>` is safe (F-7). Watch the `requestAnimationFrame` → `input.focus()`: Meet steals focus aggressively and Firefox's shadow-DOM focus timing differs. Also re-check the docking geometry. |
 | 🔴 | **F6** flag-moment shortcut | Ctrl+Shift+F (Win/Linux) / Cmd+Shift+F (macOS) mid-call → 📝 flashes, placeholder note appears. | Two independent failure modes: the `tabs.query` throw (F-1, fixed by T2) and a possible macOS shortcut conflict (F-5) where the handler is never called with **no error anywhere**. Confirm the relay works on Win/Linux before concluding anything about macOS. Also confirm it works with no host permissions declared. |
 | 🟠 | **F7** Notes export | `.txt` and `.md` from **all three** call sites: in-call modal (content script), fireflies.ai panel (content script), popup (extension page). Correct filename and contents in Downloads. | The pattern is Firefox-recommended (F-7), but the two content-script sites run under Meet's and Fireflies' CSP while the popup runs under the extension's. `triggerDownload` catches and warns, so failure is a silent dead button. |
@@ -466,10 +498,19 @@ Finish with `npx web-ext lint` — clean of errors before signing.
 1. **Internal domain for `gecko.id`** (T1).
 2. **Icon PNG assets** (T7) — none exist in the repo.
 3. **Are there macOS users?** Decides T6.
-4. **Does a temporary add-on get the F-3 host-permission auto-grant?** T0
-   answers it; the answer decides what the README tells teammates.
-5. **Is `storage.session` gated for content scripts in Firefox?** T0's probe
-   plus T5a's soak decide whether T5b is needed at all.
+4. **Does a temporary add-on get the F-3 host-permission auto-grant?**
+   **Answered 2026-09-09: yes** — on this test run (real Firefox 127+,
+   loaded as a temporary add-on) content scripts ran immediately with no
+   manual `about:addons` → Permissions step. Content script loading and F2
+   auto-admit both worked automatically. Treat as one confirmed data point,
+   not a guarantee across every Firefox version/profile — the README still
+   documents the manual-grant fallback for teammates who see a different
+   result.
+5. **Is `storage.session` gated for content scripts in Firefox?**
+   **Answered 2026-09-09: yes (effectively — it's `undefined` in the
+   content-script sandbox, not merely permission-gated).** T5a's soak test
+   confirmed it live; T5b (sessionStorage-based mute) is implemented and
+   `storage.session` has been removed from the codebase entirely.
 
 ---
 

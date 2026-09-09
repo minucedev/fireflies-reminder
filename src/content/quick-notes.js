@@ -6,6 +6,12 @@
   const notesStore = NS.notesStore;
   const notesExport = NS.notesExport;
 
+  // See notes-store.js for why this shim exists and why it resolves off
+  // globalThis. (Functionally a no-op here: onMessage is an event
+  // registration, not a promise-returning call, so it already worked
+  // identically on both `chrome.*` and `browser.*` — kept for consistency.)
+  const api = globalThis.browser ?? globalThis.chrome;
+
   const NOTE_ICON_SVG =
     '<svg viewBox="0 0 24 24" width="20" height="20" fill="white" aria-hidden="true">' +
     '<path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41' +
@@ -441,7 +447,12 @@
   }
 
   try {
-    chrome.runtime.onMessage.addListener((message) => {
+    // Must NOT be async / return a promise: returning a promise (or `true`)
+    // tells the browser "I will send a response", which changes what the
+    // sender's sendMessage() promise resolves to in both Chrome and Firefox.
+    // flagMoment() is fire-and-forget, so this listener must return
+    // `undefined` in both engines.
+    api.runtime.onMessage.addListener((message) => {
       if (message && message.type === "flag-moment") flagMoment();
     });
   } catch (err) {

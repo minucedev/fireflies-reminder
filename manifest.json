@@ -1,17 +1,25 @@
 {
   "manifest_version": 3,
   "name": "Fireflies Meet Reminder",
-  "version": "1.6.5",
+  "version": "1.7.0",
   "description": "Friendly reminder to invite the Fireflies.ai notetaker into your Google Meet call, plus quick in-call notes linked into the Fireflies app.",
-  "permissions": ["storage"],
+  "permissions": ["storage", "clipboardWrite"],
   "background": {
-    "service_worker": "src/background/service-worker.js"
+    "service_worker": "src/background/service-worker.js",
+    "scripts": ["src/background/service-worker.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "fireflies-reminder@sending.ac",
+      "strict_min_version": "127.0",
+      "data_collection_permissions": { "required": ["none"] }
+    }
   },
   "commands": {
     "flag-moment": {
       "suggested_key": {
         "default": "Ctrl+Shift+F",
-        "mac": "Command+Shift+F"
+        "mac": "MacCtrl+Shift+F"
       },
       "description": "Flag this moment in the current Google Meet call"
     }
