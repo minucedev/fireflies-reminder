@@ -1,3 +1,7 @@
 # web-ext build output and upload state — not source, regenerated per signing run
 web-ext-artifacts/
 .amo-upload-uuid
+
+# Release build artifacts — distributed via GitHub Releases, not tracked in source
+*.xpi
+*.zip
